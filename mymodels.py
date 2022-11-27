@@ -14,10 +14,10 @@ class MyLR(nn.Module):
 class MyLSTM(nn.Module):
 	def __init__(self,num_features):
 		super(MyLSTM, self).__init__()
-		self.lstm = nn.LSTM(input_size=num_features, hidden_size=32, num_layers=3, dropout=0.1, bidirectional=True, batch_first=True)
-		self.fc = nn.Linear(32, NUM_OUTPUTS)
+		self.lstm = nn.LSTM(input_size=num_features, hidden_size=32, num_layers=1, dropout=0.1, bidirectional=True, batch_first=True)
+		self.fc = nn.Linear(32*2, NUM_OUTPUTS)  
 
 	def forward(self, x):
-		out, _ = self.lstm(x)
-		out = self.fc(out[:, -1, :])#taking the last output for each batch
+		out, (h,c) = self.lstm(x)
+		out = self.fc(torch.cat((h[-2,:,:], h[-1,:,:]), dim = 1) )#bi-directional handled differently
 		return out
