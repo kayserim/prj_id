@@ -1,7 +1,11 @@
 import os
 import time
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
 import torch
+from torch.utils.data import DataLoader, TensorDataset, Dataset
 
 
 class AverageMeter(object):
@@ -34,6 +38,40 @@ def compute_batch_accuracy(output, target):
 		return correct * 100.0 / batch_size
 
 
+#TODO if cvs file gets too large we will need to write custom dataset to load it in pieces
+#TODO move this to utils and also refer in train and evaluate
+def load_dataset(path, model_type, hours_limit):
+	df = pd.read_csv(path)
+	num_features = None
+	x = torch.tensor(df.drop(['ICUSTAY_ID','POSITIVE'], axis=1).to_numpy(), dtype=torch.float32)
+	target = torch.tensor(df.POSITIVE.to_numpy(), dtype=torch.long)
+	x_dim1, x_dim2 = x.shape
+
+	if model_type in ['LSTM', 'LSTMCNN']:
+		num_features = hours_limit
+		data = x.reshape((x_dim1, x_dim2//num_features, num_features))
+	else:
+		num_features = x_dim2
+		data = x
+
+	dataset = TensorDataset(data, target)
+	return num_features, dataset
+	
+def plot_learning_curves(train_losses, valid_losses, train_accuracies, valid_accuracies):
+	plotting = {'Loss': {'tra_data': train_losses, 'val_data': valid_losses},
+				'Accuracy': {'tra_data': train_accuracies, 'val_data': valid_accuracies}}
+	for type, data in plotting.items():
+		plt.plot(data['tra_data'], label='training')
+		plt.plot(data['val_data'], label='validation')
+		plt.title(type + " Curve")
+		plt.xlabel("Epoch")
+		plt.ylabel(type)
+		plt.grid()
+		plt.legend(loc="best")
+		plt.show() #todo save instead?
+		#plt.savefig(type + "_curve")
+		plt.close()
+		
 def train(model, device, data_loader, criterion, optimizer, epoch, print_freq=10):
 	batch_time = AverageMeter()
 	data_time = AverageMeter()
@@ -121,15 +159,3 @@ def evaluate(model, device, data_loader, criterion, print_freq=10):
 					i, len(data_loader), batch_time=batch_time, loss=losses, acc=accuracy))
 
 	return losses.avg, accuracy.avg, results
-
-
-def make_kaggle_submission(list_id, list_prob, path):
-	if len(list_id) != len(list_prob):
-		raise AttributeError("ID list and Probability list have different lengths")
-
-	os.makedirs(path, exist_ok=True)
-	output_file = open(os.path.join(path, 'my_predictions.csv'), 'w')
-	output_file.write("SUBJECT_ID,MORTALITY\n")
-	for pid, prob in zip(list_id, list_prob):
-		output_file.write("{},{}\n".format(pid, prob))
-	output_file.close()
