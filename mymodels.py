@@ -12,12 +12,18 @@ class MyLR(nn.Module):
 
 #TODO temporary - need to match the paper
 class MyLSTM(nn.Module):
-	def __init__(self,num_features):
+	def __init__(self,num_features, config=None):
 		super(MyLSTM, self).__init__()
-		self.lstm = nn.LSTM(input_size=num_features, hidden_size=32, num_layers=3, dropout=0.1, bidirectional=True, batch_first=True)
-		self.fc = nn.Linear(32*2, NUM_OUTPUTS)  
+		class default_config:
+		    LSTM_HIDDEN_SIZE = 32
+		    LSTM_NUM_LAYERS = 3
+		    LSTM_DROPOUT = 0.1
+		self.config = config if config is not None else default_config# for backwards compatibility
+		print(self.config)
+		self.lstm = nn.LSTM(input_size=num_features, hidden_size=self.config.LSTM_HIDDEN_SIZE, num_layers=self.config.LSTM_NUM_LAYERS, dropout=self.config.LSTM_DROPOUT, bidirectional=True, batch_first=True)
+		self.fc = nn.Linear(self.config.LSTM_HIDDEN_SIZE*2, NUM_OUTPUTS)  
 
 	def forward(self, x):
 		out, (h,c) = self.lstm(x)
-		out = self.fc(torch.cat((h[-2,:,:], h[-1,:,:]), dim = 1) )#bi-directional handled differently
+		out = self.fc(torch.cat((h[-2,:,:], h[-1,:,:]), dim = 1) )#bi-directional need to be handled differently
 		return out
