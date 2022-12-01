@@ -43,14 +43,19 @@ def compute_batch_accuracy(output, target):
 def load_dataset(path, model_type, hours_limit):
 	df = pd.read_csv(path)
 	num_features = None
-	x = torch.tensor(df.drop(['ICUSTAY_ID','POSITIVE'], axis=1).to_numpy(), dtype=torch.float32)
 	target = torch.tensor(df.POSITIVE.to_numpy(), dtype=torch.long)
-	x_dim1, x_dim2 = x.shape
+	df = df.drop(['ICUSTAY_ID','POSITIVE'], axis=1)
 
 	if model_type in ['LSTM', 'LSTMCNN']:
+		df = df.loc[:,~df.columns.str.startswith('CESTAT')]#dropping bias and rate columns 		
+		x = torch.tensor(df.to_numpy(), dtype=torch.float32)
+		x_dim1, x_dim2 = x.shape  
 		num_features = hours_limit
-		data = x.reshape((x_dim1, x_dim2//num_features, num_features))
+		data = x.reshape((x_dim1, x_dim2//num_features, num_features))#NOTE: does this mean we need to create 48hr data for diagnostics and demographics
 	else:
+		df = df.loc[:,df.columns.str.startswith('CESTAT')]#using bias and rate columns only for LogisticRegression
+		x = torch.tensor(df.to_numpy(), dtype=torch.float32)
+		x_dim1, x_dim2 = x.shape
 		num_features = x_dim2
 		data = x
 
