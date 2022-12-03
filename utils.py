@@ -44,16 +44,28 @@ def load_dataset(path, model_type, hours_limit):
 	df = pd.read_csv(path)
 	num_features = None
 	target = torch.tensor(df.POSITIVE.to_numpy(), dtype=torch.long)
-	df = df.drop(['ICUSTAY_ID','POSITIVE'], axis=1)
+	df = df.drop(['POSITIVE'], axis=1)
 
-	if model_type in ['LSTM', 'LSTMCNN']:
-		df = df.loc[:,~df.columns.str.startswith('CESTAT')]#dropping bias and rate columns 		
+	if model_type in ['LSTM']:
+		df = df.loc[:,df.columns.str.startswith('HRLY')]#only using hourly data as per paper	
 		x = torch.tensor(df.to_numpy(), dtype=torch.float32)
 		x_dim1, x_dim2 = x.shape  
 		num_features = hours_limit
-		data = x.reshape((x_dim1, x_dim2//num_features, num_features))#NOTE: does this mean we need to create 48hr data for diagnostics and demographics
+		data = x.reshape((x_dim1, x_dim2//num_features, num_features))
+	elif model_type in ['LSTMCNN']:
+		df = df.loc[:,~df.columns.str.startswith('CESTAT')]# not using bias and rate data as per paper		
+		x = torch.tensor(df.to_numpy(), dtype=torch.float32)
+		x_dim1, x_dim2 = x.shape  
+		# it is not clear in the paper how non-hourly features are sequenced hence will zero pad to make data to look like all hourly data.
+		hourly_columns = sum(df.columns.str.startswith('HRLY'))
+		hourly_features = hourly_columns//hours_limit
+		zero_pad_size = hourly_features*(1+((x_dim2-1)//hourly_features))-x_dim2 #first part is ceil division
+		num_features = (x_dim2 + zero_pad_size)//hourly_features
+		zero_pad = torch.zeros(x_dim1,zero_pad_size)
+		x_padded = torch.cat([x,zero_pad], dim = 1) 
+		data = x_padded.reshape((x_dim1, hourly_features, num_features))
 	else:
-		df = df.loc[:,df.columns.str.startswith('CESTAT')]#using bias and rate columns only for LogisticRegression
+		df = df.loc[:,~df.columns.str.startswith('HRLY')]#for LR not using hourly data as per paper
 		x = torch.tensor(df.to_numpy(), dtype=torch.float32)
 		x_dim1, x_dim2 = x.shape
 		num_features = x_dim2
@@ -164,3 +176,4 @@ def evaluate(model, device, data_loader, criterion, print_freq=10):
 					i, len(data_loader), batch_time=batch_time, loss=losses, acc=accuracy))
 
 	return losses.avg, accuracy.avg, results
+
