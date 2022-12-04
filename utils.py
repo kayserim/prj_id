@@ -166,7 +166,8 @@ def evaluate(model, device, data_loader, criterion, print_freq=10):
 
 			y_true = target.detach().to('cpu').numpy().tolist()
 			y_pred = output.detach().to('cpu').max(1)[1].numpy().tolist()
-			results.extend(list(zip(y_true, y_pred)))
+			y_prob = F.softmax(output, dim=1).tolist()
+			results.extend(list(zip(y_true, y_pred, y_prob)))
 
 			if i % print_freq == 0:
 				print('Test: [{0}/{1}]\t'
